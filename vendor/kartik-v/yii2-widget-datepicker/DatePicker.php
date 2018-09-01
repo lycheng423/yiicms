@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @copyright Copyright &copy; Kartik Visweswaran, Krajee.com, 2014 - 2016
+ * @copyright Copyright &copy; Kartik Visweswaran, Krajee.com, 2014 - 2017
  * @package yii2-widgets
  * @subpackage yii2-widget-datepicker
  * @version 1.4.2
@@ -233,6 +233,9 @@ class DatePicker extends InputWidget
                 $this->layout = '{input1}{separator}{input2}';
             }
         }
+        if (empty($this->options['class'])) {
+            Html::addCssClass($this->options, 'form-control');
+        }
         Html::addCssClass($this->options, 'krajee-datepicker');
         $this->options['data-datepicker-source'] = $this->type === self::TYPE_INPUT ? $this->options['id'] :
             $this->_container['id'];
@@ -296,7 +299,6 @@ class DatePicker extends InputWidget
      */
     protected function renderInput()
     {
-        Html::addCssClass($this->options, 'form-control');
         if ($this->type == self::TYPE_INLINE) {
             if (empty($this->options['readonly'])) {
                 $this->options['readonly'] = true;

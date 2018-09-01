@@ -25,12 +25,15 @@ class RemoteServer extends LocalServer
             return;
         }
 
-        $suite = $e->getSuite()->getName();
+        $suite = strtr($e->getSuite()->getName(), ['\\' => '.']);
         if ($this->options['coverage-xml']) {
             $this->retrieveAndPrintXml($suite);
         }
         if ($this->options['coverage-html']) {
             $this->retrieveAndPrintHtml($suite);
+        }
+        if ($this->options['coverage-crap4j']) {
+            $this->retrieveAndPrintCrap4j($suite);
         }
     }
 
@@ -56,5 +59,11 @@ class RemoteServer extends LocalServer
     {
         $destFile = Configuration::outputDir() . $suite . '.remote.coverage.xml';
         file_put_contents($destFile, $this->c3Request('clover'));
+    }
+
+    protected function retrieveAndPrintCrap4j($suite)
+    {
+        $destFile = Configuration::outputDir() . $suite . '.remote.crap4j.xml';
+        file_put_contents($destFile, $this->c3Request('crap4j'));
     }
 }

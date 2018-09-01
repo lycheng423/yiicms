@@ -21,7 +21,6 @@ class PhpBrowserTest extends TestsForBrowsers
         $url = 'http://localhost:8000';
         $this->module->_setConfig(array('url' => $url));
         $this->module->_initialize();
-        $this->module->_cleanup();
         $this->module->_before($this->makeTest());
         if (class_exists('GuzzleHttp\Url')) {
             $this->history = new \GuzzleHttp\Subscriber\History();
@@ -72,6 +71,14 @@ class PhpBrowserTest extends TestsForBrowsers
         $this->module->click('Ссылочка');
     }
 
+    /**
+     * @see https://github.com/Codeception/Codeception/issues/4509
+     */
+    public function testSeeTextAfterJSComparisionOperator()
+    {
+        $this->module->amOnPage('/info');
+        $this->module->see('Text behind JS comparision');
+    }
 
     public function testSetMultipleCookies()
     {
@@ -99,6 +106,28 @@ class PhpBrowserTest extends TestsForBrowsers
         $this->module->seeCookie($cookie_name_2);
         $this->module->resetCookie($cookie_name_2);
         $this->module->dontSeeCookie($cookie_name_2);
+    }
+
+    public function testSessionsHaveIndependentCookies()
+    {
+        $this->module->amOnPage('/');
+        $cookie_name_1  = 'test_cookie';
+        $cookie_value_1 = 'this is a test';
+        $this->module->setCookie($cookie_name_1, $cookie_value_1);
+
+        $session = $this->module->_backupSession();
+        $this->module->_initializeSession();
+
+        $this->module->dontSeeCookie($cookie_name_1);
+
+        $cookie_name_2  = '2_test_cookie';
+        $cookie_value_2 = '2 this is a test';
+        $this->module->setCookie($cookie_name_2, $cookie_value_2);
+
+        $this->module->_loadSession($session);
+
+        $this->module->dontSeeCookie($cookie_name_2);
+        $this->module->seeCookie($cookie_name_1);
     }
 
     public function testSubmitFormGet()
@@ -249,6 +278,13 @@ class PhpBrowserTest extends TestsForBrowsers
         $this->module->seeCurrentUrlEquals('/location_201');
     }
 
+    public function testRedirectToAnotherDomainUsingSchemalessUrl()
+    {
+        $this->module->amOnUrl('http://httpbin.org/redirect-to?url=//codeception.com/');
+        $currentUrl = $this->module->client->getHistory()->current()->getUri();
+        $this->assertSame('http://codeception.com/', $currentUrl);
+    }
+
     public function testSetCookieByHeader()
     {
         $this->module->amOnPage('/cookies2');
@@ -256,14 +292,6 @@ class PhpBrowserTest extends TestsForBrowsers
         $this->module->seeCookie('a');
         $this->assertEquals('b', $this->module->grabCookie('a'));
         $this->module->seeCookie('c');
-    }
-
-    public function testUrlSlashesFormatting()
-    {
-        $this->module->amOnPage('somepage.php');
-        $this->module->seeCurrentUrlEquals('/somepage.php');
-        $this->module->amOnPage('///somepage.php');
-        $this->module->seeCurrentUrlEquals('/somepage.php');
     }
 
     public function testSettingContentTypeFromHtml()
@@ -293,20 +321,6 @@ class PhpBrowserTest extends TestsForBrowsers
         $form = data::get('form');
         $this->assertEquals('jon', $form['name']);
         $this->module->seeCurrentUrlEquals('/form/example3?validate=yes');
-    }
-
-    public function testHeadersByConfig()
-    {
-        $this->module->_setConfig(['headers' => ['xxx' => 'yyyy']]);
-        $this->module->_initialize();
-        $this->module->amOnPage('/form1');
-
-        if (method_exists($this->module->guzzle, 'getConfig')) {
-            $headers = $this->module->guzzle->getConfig('headers');
-        } else {
-            $headers = $this->module->guzzle->getDefaultOption('headers');
-        }
-        $this->assertArrayHasKey('xxx', $headers);
     }
 
     public function testHeadersBySetHeader()
@@ -348,6 +362,9 @@ class PhpBrowserTest extends TestsForBrowsers
 
     public function testCurlSslOptions()
     {
+        if (getenv('WERCKER_ROOT')) {
+            $this->markTestSkipped('Disabled on Wercker CI');
+        }
         $this->module->_setConfig(array(
             'url' => 'https://google.com',
             'curl' => array(
@@ -597,5 +614,81 @@ class PhpBrowserTest extends TestsForBrowsers
     {
         $this->module->amOnPage('/form/button-not-in-form');
         $this->module->click('The Button');
+    }
+
+    public function testSubmitFormWithoutEmptyOptionsInSelect()
+    {
+        $this->module->amOnPage('/form/bug3824');
+        $this->module->submitForm('form', []);
+        $this->module->dontSee('ERROR');
+    }
+
+    /**
+     * @issue https://github.com/Codeception/Codeception/issues/3953
+     */
+    public function testFillFieldInGetFormWithoutId()
+    {
+        $this->module->amOnPage('/form/bug3953');
+        $this->module->selectOption('select_name', 'two');
+        $this->module->fillField('search_name', 'searchterm');
+        $this->module->click('Submit');
+        $params = data::get('query');
+        $this->assertEquals('two', $params['select_name']);
+        $this->assertEquals('searchterm', $params['search_name']);
+    }
+
+    public function testGrabPageSourceWhenNotOnPage()
+    {
+        $this->setExpectedException(
+            '\Codeception\Exception\ModuleException',
+            'Page not loaded. Use `$I->amOnPage` (or hidden API methods `_request` and `_loadPage`) to open it'
+        );
+        $this->module->grabPageSource();
+    }
+
+    public function testGrabPageSourceWhenOnPage()
+    {
+        $this->module->amOnPage('/minimal');
+        $sourceExpected =
+<<<HTML
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Minimal page
+        </title>
+    </head>
+    <body>
+        <h1>
+            Minimal page
+        </h1>
+    </body>
+</html>
+
+HTML
+        ;
+        $sourceActual = $this->module->grabPageSource();
+        $this->assertXmlStringEqualsXmlString($sourceExpected, $sourceActual);
+    }
+
+    /**
+     * @issue https://github.com/Codeception/Codeception/issues/4383
+     */
+    public function testSecondAmOnUrlWithEmptyPath()
+    {
+        $this->module->amOnUrl('http://localhost:8000/info');
+        $this->module->see('Lots of valuable data here');
+        $this->module->amOnUrl('http://localhost:8000');
+        $this->module->dontSee('Lots of valuable data here');
+    }
+
+    public function testSetUserAgentUsingConfig()
+    {
+        $this->module->_setConfig(['headers' => ['User-Agent' => 'Codeception User Agent Test 1.0']]);
+        $this->module->_initialize();
+
+        $this->module->amOnPage('/user-agent');
+        $response = $this->module->grabPageSource();
+        $this->assertEquals('Codeception User Agent Test 1.0', $response, 'Incorrect user agent');
     }
 }

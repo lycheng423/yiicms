@@ -1,0 +1,234 @@
+<?php
+namespace backend\controllers;
+
+use yii;
+use yii\data\Pagination;
+use backend\models\Manager;
+use backend\models\PasswdForm;
+use backend\models\AuthItem;
+use backend\models\AuthAssignment;
+
+/**
+ * 后台用户控制器
+ *
+ * Class ManagerController
+ * @package backend\controllers
+ */
+class ManagerController extends MController
+{
+    /**
+     * 首页
+     */
+    public function actionIndex()
+    {
+        $request = Yii::$app->request;
+        $type = $request->get('type', 1);
+        $keyword = $request->get('keyword', '');
+
+        switch ($type) {
+            case '1':
+                $where = ['like', 'username', $keyword];
+                break;
+            case '2':
+                $where = ['like', 'realname', $keyword];
+                break;
+            case '3':
+                $where = ['like', 'mobile_phone', $keyword];
+                break;
+            default:
+                $where = [];
+                break;
+        }
+
+        // 验证是否超级管理员
+        $manager = [];
+        if (Yii::$app->user->identity->id != Yii::$app->params['adminAccount']) {
+            $manager = ['type' => Manager::TYPE_USER];
+        }
+
+        // 关联角色查询
+        $data = Manager::find()->with('assignment')->where($where)->andWhere($manager);
+        $pages = new Pagination(['totalCount' => $data->count(), 'pageSize' => $this->_pageSize]);
+        $models = $data->offset($pages->offset)->orderBy('type desc,created_at desc')->limit($pages->limit)->all();
+
+        return $this->render('index', [
+            'models' => $models,
+            'pages' => $pages,
+            'type' => $type,
+            'keyword' => $keyword,
+        ]);
+    }
+
+    /**
+     * 编辑
+     *
+     * @return array|mixed|string|\yii\web\Response
+     */
+    public function actionEdit()
+    {
+        $request = Yii::$app->request;
+        $id = $request->get('id');
+        $model = $this->findModel($id);
+
+        if ($model->load(Yii::$app->request->post())) {
+            if ($request->isAjax) {
+                Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+                return \yii\widgets\ActiveForm::validate($model);
+            } else {
+                return $model->save()
+                    ? $this->redirect(['index'])
+                    : $this->message($this->analysisError($model->getFirstErrors()), $this->redirect(['index']), 'error');
+            }
+        }
+
+        return $this->renderAjax('edit', [
+            'model' => $model,
+        ]);
+    }
+
+    /**
+     * 用户账号
+     *
+     * @return string|yii\web\Response
+     */
+    public function actionEditPersonal()
+    {
+        $request = Yii::$app->request;
+        $id = $request->get('id');
+        $model = $this->findModel($id);
+
+        // 提交表单
+        if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            return $this->redirect(['index']);
+        }
+
+        return $this->render('personal', [
+            'model' => $model,
+            'admin' => true,
+        ]);
+    }
+
+    /**
+     * 删除
+     *
+     * @param $id
+     * @return mixed
+     */
+    public function actionDelete($id)
+    {
+        if ($this->findModel($id)->delete()) {
+            return $this->message('用户删除成功', $this->redirect(['index']));
+        } else {
+            return $this->message('用户删除失败', $this->redirect(['index']), 'error');
+        }
+    }
+
+    /**
+     * 用户角色设置
+     */
+    public function actionAuthRole()
+    {
+        $request = Yii::$app->request;
+        // 用户id
+        $user_id = $request->get('user_id');
+        // 角色
+        $role = AuthItem::find()->where(['type' => AuthItem::ROLE])->all();
+        // 模型
+        $model = AuthAssignment::find()->where(['user_id' => $user_id])->one();
+
+        if (!$model) {
+            $model = new AuthAssignment();
+            $model->user_id = $user_id;
+        }
+
+        if ($model->load($request->post())) {
+            if ($request->isAjax) {
+                Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+                return \yii\widgets\ActiveForm::validate($model);
+            } else {
+                $AuthAssignment = new AuthAssignment();
+                // 返回状态
+                if ($AuthAssignment->setAuthRole($model->user_id, $model->item_name)) {
+                    return $this->message('角色分配成功', $this->redirect(['index']));
+                } else {
+                    return $this->message('分配失败,角色可能已经被删除！', $this->redirect(['index']), 'error');
+                }
+            }
+        }
+
+        return $this->renderAjax('auth-role', [
+            'model' => $model,
+            'role' => $role,
+            'user_id' => $user_id,
+        ]);
+    }
+
+    /**
+     * 修改个人资料
+     *
+     * @return string|yii\web\Response
+     */
+    public function actionPersonal()
+    {
+        $id = Yii::$app->user->identity->id;
+        $model = $this->findModel($id);
+
+        // 提交表单
+        if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            return $this->redirect(['personal', 'id' => $id]);
+        }
+
+        return $this->render('personal', [
+            'model' => $model,
+            'admin' => false,
+        ]);
+    }
+
+
+    /**
+     * 修改密码
+     *
+     * @return string|yii\web\Response
+     */
+    public function actionUpPasswd()
+    {
+        $request = Yii::$app->request;
+        $model = new PasswdForm();
+
+        if ($model->load($request->post()) && $model->validate()) {
+            $id = Yii::$app->user->identity->id;
+            $manager = $this->findModel($id);
+            $manager->password_hash = $model->passwd_new;
+
+            if ($manager->save()) {
+                // 退出登录
+                Yii::$app->user->logout();
+                return $this->goHome();
+            }
+        }
+
+        return $this->render('up_passwd', [
+            'model' => $model,
+        ]);
+    }
+
+    /**
+     * 返回模型
+     *
+     * @param $id
+     * @return Manager|static
+     */
+    protected function findModel($id)
+    {
+        if (empty($id)) {
+            return new Manager;
+        }
+
+        if (empty(($model = Manager::findOne($id)))) {
+            return new Manager;
+        }
+
+        return $model;
+    }
+
+}

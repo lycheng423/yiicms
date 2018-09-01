@@ -1,6 +1,22 @@
 Change Log: `yii2-krajee-base`
 ==============================
 
+## Version 1.8.9
+
+**Date:** 29-Sep-2017
+
+- (#80): Add ability to configure module id in widgets.
+- (#79): New property `hashVarLoadPosition` for InputWidget and Widget.
+- (enh kartik-v/yii2-widget-switchinput#29): Enhance boolean inputs for better value init in non model scenario.
+
+## Version 1.8.8
+
+**Date:** 22-Feb-2017
+
+- (enh #74): Allow registering variables in closures by setting them in global namespace.
+- (enh #75): Better validation for default attribute value.
+- (enh #76): Create `BaseAssetBundle` without JQuery and Bootstrap assets dependency.
+
 ## Version 1.8.7
 
 **Date:** 04-Sep-2016

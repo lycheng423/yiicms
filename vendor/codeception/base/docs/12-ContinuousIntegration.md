@@ -1,4 +1,4 @@
-# Continous Integration
+# Continuous Integration
 
 Once you get testing suite up and running you are interested in running your tests regularly. If you ensure that tests are running on every code change or at least once a day you can be sure that no regression is introduced. This allows to keep you system stable. But developers are not so passionate about running all tests manually, they also can forget to execute tests before pushing code to production... The solution is simple, test execution should be automated. Instead of running them locally it is better to have dedicated server responsible for running tests for a team. This way we can ensure that everyone's tests executed, which commit made a regression in codebase, and that we can deploy only once tests pass. 
 
@@ -80,9 +80,9 @@ Jenkins should locate `report.html` at `tests/_output/`. Now Jenkins will displa
 
 ## TeamCity
 
-![TeamCity](https://codeception.com/images/teamcity.png)
+![TeamCity](http://codeception.com/images/teamcity/logo.jpg)
 
-TeamCity is a hotsed solution from JetBrains. The setup of it can be a bit tricky as TeamCity uses its own reporter format for parsing test results. PHPUnit since verison 5.x has integrated support for this format, so does Codeception. What we need to do is to configure Codeception to use custom reporter. By default there is `--report` option which provides an alternative output. You can change the reporter class in `codeception.yml` configuration:
+TeamCity is a hosted solution from JetBrains. The setup of it can be a bit tricky as TeamCity uses its own reporter format for parsing test results. PHPUnit since version 5.x has integrated support for this format, so does Codeception. What we need to do is to configure Codeception to use custom reporter. By default there is `--report` option which provides an alternative output. You can change the reporter class in `codeception.yml` configuration:
 
 ```yaml
 reporters:
@@ -97,17 +97,17 @@ After you create build project you should define build step with Codeception whi
 php codecept run --report
 ```
 
-![build step](https://codeception.com/images/teamcity/build.png)
+![build step](http://codeception.com/images/teamcity/build.png)
 
 Once you execute your first build you should see detailed report inside TeamCity interface:
 
-![report](https://codeception.com/images/teamcity/report.png)
+![report](http://codeception.com/images/teamcity/report2.png)
 
 ## TravisCI
 
-![Travis CI](https://codeception.com/images/travis.png)
+![Travis CI](http://codeception.com/images/travis.png)
 
-Travis CI is popular service CI with good GitHub integration. Codeception is self-tested with Travis CI. There nothing specifal about configuration. Just add to the bottom line of travis configuration:
+Travis CI is popular service CI with good GitHub integration. Codeception is self-tested with Travis CI. There nothing special about configuration. Just add to the bottom line of travis configuration:
 
 ```yaml
 php codecept run 
@@ -119,8 +119,39 @@ Travis doesn't provide visualization for XML or HTML reports so you can't view r
 
 ## GitLab
 
-[Work In Progress]
+![report](http://codeception.com/images/gitlab/logo.png)
+
+If a file `.gitlab-ci.yml` exists in the root of the git repository, GitLab will run a pipeline each time you push to the gitlab server. The file configures the docker image that will be called. Below is a sample which loads a php7 docker image, clones your files, installs composer dependencies, runs the built-in php webserver and finally runs codeception:
+
+```yaml
+# Select image from https://hub.docker.com/_/php/
+image: php:7.0
+
+# Select what we should cache
+cache:
+  paths:
+  - vendor/
+
+before_script:
+# Install git and unzip (composer will need them)
+- apt-get update && apt-get install -qqy git unzip
+# Install composer
+- curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install all project dependencies
+- composer install
+# Run webserver
+- php -S localhost:8085 --docroot public &>/dev/null&
+
+# Test
+test:
+  script:
+  - vendor/bin/codecept run
+```
+
+![report](http://codeception.com/images/gitlab/build.png)
+
+For acceptance testing you can use `codeception/codeception` docker image as base.
 
 ## Conclusion
 
-It is tringly recommended to use Continuous Integration system in development. Codeception is easy to install and run in any CI systems. However, each of them has their differences you should take into account. You can use different repoters to provide output in format expected by CI system.
+It is highly recommended to use Continuous Integration system in development. Codeception is easy to install and run in any CI systems. However, each of them has their differences you should take into account. You can use different reporters to provide output in format expected by CI system.
